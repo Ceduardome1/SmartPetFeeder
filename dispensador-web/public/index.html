@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dispensador inteligente</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="cabecera">
+  <div class="marca">
+    <svg class="logo" viewBox="0 0 44 44" aria-hidden="true">
+      <circle cx="14" cy="11" r="3.4"/><circle cx="23" cy="8" r="3.4"/><circle cx="31" cy="12" r="3.4"/>
+      <path d="M4 19h36c0 10-7.5 18-18 18S4 29 4 19z"/>
+    </svg>
+    <div>
+      <h1>Dispensador inteligente de alimento</h1>
+      <p>Panel remoto del prototipo</p>
+    </div>
+  </div>
+  <div id="enlace" class="enlace enlace-buscando" role="status" aria-live="polite">
+    <span class="punto"></span><span id="enlace-texto">Conectando con el servidor…</span>
+  </div>
+</header>
+
+<div id="banner" class="banner" hidden role="alert">
+  <strong id="banner-titulo"></strong>
+  <span id="banner-detalle"></span>
+</div>
+
+<main class="rejilla">
+
+  <section class="panel" aria-labelledby="h-estado">
+    <h2 id="h-estado">Estado en vivo</h2>
+
+    <div class="semaforo">
+      <div class="leds" id="leds" role="img" aria-label="Semáforo del sistema">
+        <span class="led verde"></span><span class="led amarilla"></span><span class="led roja"></span>
+      </div>
+      <div>
+        <p class="sem-etiqueta" id="sem-etiqueta">Sin datos</p>
+        <p class="sem-detalle" id="sem-detalle">Esperando al hardware…</p>
+      </div>
+    </div>
+
+    <div class="instrumentos">
+      <figure class="instrumento">
+        <div class="tanque" role="img" aria-label="Nivel de comida en el depósito">
+          <div class="tanque-nivel" id="tanque-nivel"></div>
+          <div class="tanque-minimo" title="Mínimo: 5 %"></div>
+        </div>
+        <figcaption>
+          <span class="valor" id="nivel-valor">—</span>
+          <span class="rotulo">Nivel de comida</span>
+        </figcaption>
+      </figure>
+
+      <figure class="instrumento">
+        <svg class="dial" viewBox="0 0 160 110" role="img" aria-label="Servo del dispensador">
+          <path class="dial-cara" d="M6 108 V94 A74 74 0 0 1 154 94 V108 Z"/>
+          <path class="dial-pista" d="M24 94 A56 56 0 0 1 136 94"/>
+          <path class="dial-config" id="arco-disp" pathLength="100" d="M24 94 A56 56 0 0 1 136 94"/>
+          <g class="cuerno" id="cuerno-disp"><line x1="80" y1="94" x2="32" y2="94"/><circle cx="80" cy="94" r="8"/></g>
+          <text x="24" y="104" text-anchor="middle">0</text>
+          <text x="136" y="104" text-anchor="middle">100</text>
+        </svg>
+        <figcaption>
+          <span class="valor" id="angulo-valor">—</span>
+          <span class="rotulo">Dispensador, apertura configurada</span>
+        </figcaption>
+      </figure>
+
+      <figure class="instrumento">
+        <svg class="dial" viewBox="0 0 160 110" role="img" aria-label="Servo de la escotilla">
+          <path class="dial-cara" d="M6 108 V94 A74 74 0 0 1 154 94 V108 Z"/>
+          <path class="dial-pista" d="M24 94 A56 56 0 0 1 136 94"/>
+          <path class="dial-config" id="arco-esc" pathLength="100" d="M24 94 A56 56 0 0 1 136 94"/>
+          <g class="cuerno" id="cuerno-esc"><line x1="80" y1="94" x2="32" y2="94"/><circle cx="80" cy="94" r="8"/></g>
+          <text x="24" y="104" text-anchor="middle">0</text>
+          <text x="136" y="104" text-anchor="middle">100</text>
+        </svg>
+        <figcaption>
+          <span class="valor" id="escotilla-valor">—</span>
+          <span class="rotulo">Escotilla</span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-ctrl">
+    <h2 id="h-ctrl">Controles manuales</h2>
+
+    <div class="campo">
+      <label for="angulo">Apertura del dispensador <output id="angulo-out" for="angulo">50 %</output></label>
+      <input type="range" id="angulo" min="10" max="100" step="1" value="50">
+      <button type="button" id="btn-aplicar" class="btn sec">Aplicar apertura</button>
+    </div>
+
+    <button type="button" id="btn-dispensar" class="btn primario">Dispensar porción</button>
+
+    <label class="interruptor">
+      <input type="checkbox" id="sw-paro">
+      <span class="pista"><span class="perilla"></span></span>
+      <span class="texto">
+        <b>Paro de emergencia</b>
+        <small id="paro-detalle">Abre la escotilla y bloquea el dispensador</small>
+      </span>
+    </label>
+
+    <button type="button" id="btn-reiniciar" class="btn reinicio">Reiniciar flujo</button>
+    <p class="ayuda" id="ctrl-ayuda"></p>
+
+    <div class="sim" id="sim" hidden>
+      <h3>Simulador de hardware</h3>
+      <p class="ayuda">Modo demostración, sin Arduino. Estos controles hacen lo que harían el potenciómetro y los pulsadores del prototipo.</p>
+      <label for="sim-nivel">Potenciómetro <output id="sim-nivel-out" for="sim-nivel">80 %</output></label>
+      <input type="range" id="sim-nivel" min="0" max="100" step="1" value="80">
+      <div class="sim-botones">
+        <button type="button" class="btn sec" data-sim="cabeza">Cabeza atorada</button>
+        <button type="button" class="btn sec" data-sim="dispensar">Dispensar</button>
+        <button type="button" class="btn sec" data-sim="escotilla">Abrir escotilla</button>
+        <button type="button" class="btn sec" data-sim="reiniciar">Reiniciar</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel bitacora" aria-labelledby="h-bit">
+    <div class="bit-cabecera">
+      <h2 id="h-bit">Bitácora de eventos</h2>
+      <a class="btn sec chico" href="/api/bitacora.csv" download>Descargar CSV</a>
+    </div>
+    <div class="tabla-caja">
+      <table>
+        <thead>
+          <tr><th>Fecha</th><th>Hora</th><th>Origen</th><th>Evento</th><th>Descripción</th></tr>
+        </thead>
+        <tbody id="bit-cuerpo"></tbody>
+      </table>
+      <p class="vacia" id="bit-vacia" hidden>Todavía no hay eventos. Aparecerán aquí cuando el hardware o la web hagan algo.</p>
+    </div>
+  </section>
+
+</main>
+
+<div class="aviso-flotante" id="toast" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

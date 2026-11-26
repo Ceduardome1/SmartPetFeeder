@@ -1,0 +1,19 @@
+{
+  "name": "dispensador-mascotas-web",
+  "version": "1.0.0",
+  "description": "Interfaz web (HMI remota y bitácora) del Dispensador Inteligente de Alimento para Mascotas",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "demo": "node server.js --simulador",
+    "puertos": "node server.js --puertos"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "serialport": "^12.0.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
