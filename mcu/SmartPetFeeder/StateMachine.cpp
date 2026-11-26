@@ -51,6 +51,10 @@ void StateMachine::onRemoteParoEmergencia() {
   enterParoEmergencia(false);
 }
 
+void StateMachine::onSyncState() {
+  emitCurrent("ESTADO_NIVEL");
+}
+
 void StateMachine::onUnhandledException() {
   if (_state == STATE_CABEZA_ATORADA) return;
   enterParoEmergencia(false);

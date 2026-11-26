@@ -4,11 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Bitácora cronológica persistente (RF-07). Cada entrada se guarda como una línea JSON
- * en data/bitacora.jsonl, así sobrevive a reinicios del servidor.
+ * Modelo de Bitácora cronológica persistente (RF-07).
+ * Cada entrada se guarda como una línea JSON en data/bitacora.jsonl.
  */
-class Bitacora {
-  constructor({ archivo, maxEnMemoria }) {
+class BitacoraModel {
+  constructor({ archivo, maxEnMemoria = 500 }) {
     this.archivo = archivo;
     this.max = maxEnMemoria;
     this.entradas = [];
@@ -39,12 +39,21 @@ class Bitacora {
   _cargar() {
     this.entradas = this._leerArchivo().slice(-this.max);
     const ultima = this.entradas[this.entradas.length - 1];
-    if (ultima) this.siguienteId = ultima.id + 1;
+    if (ultima && Number.isFinite(ultima.id)) {
+      this.siguienteId = ultima.id + 1;
+    }
   }
 
   /** tipo: 'hardware' | 'web' | 'sistema'; severidad: 'info' | 'ok' | 'aviso' | 'critico' */
   agregar({ tipo, severidad, evento, descripcion }) {
-    const entrada = { id: this.siguienteId++, ts: new Date().toISOString(), tipo, severidad, evento, descripcion };
+    const entrada = {
+      id: this.siguienteId++,
+      ts: new Date().toISOString(),
+      tipo,
+      severidad,
+      evento,
+      descripcion,
+    };
     this.entradas.push(entrada);
     if (this.entradas.length > this.max) this.entradas.shift();
     fs.appendFile(this.archivo, JSON.stringify(entrada) + '\n', () => {});
@@ -56,7 +65,7 @@ class Bitacora {
     return this.entradas.slice(-n).reverse();
   }
 
-  /** Toda la historia en CSV (con BOM para que Excel respete los acentos). */
+  /** Toda la historia en CSV (con BOM UTF-8 para compatibilidad con Excel). */
   csv() {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const filas = this._leerArchivo().map((e) => {
@@ -72,8 +81,8 @@ class Bitacora {
         .map(esc)
         .join(',');
     });
-    return '﻿' + ['Fecha,Hora,Origen,Severidad,Evento,Descripción', ...filas].join('\r\n') + '\r\n';
+    return '\uFEFF' + ['Fecha,Hora,Origen,Severidad,Evento,Descripción', ...filas].join('\r\n') + '\r\n';
   }
 }
 
-module.exports = Bitacora;
+module.exports = BitacoraModel;

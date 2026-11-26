@@ -42,6 +42,10 @@ void M2MProtocol::parseLine(const char* line) {
     Serial.print(F("{\"evento\":\"PONG\",\"dispositivo\":\""));
     Serial.print(F(DEVICE_ID));
     Serial.println(F("\"}"));
+    // Fase 4 (README 1.2): sincronización inmediata de estado inicial tras handshake
+    if (_sm) {
+      _sm->onSyncState();
+    }
   }
   else if (strcmp(line, "CMD_DISPENSAR") == 0) {
     _sm->onRequestDispensar();

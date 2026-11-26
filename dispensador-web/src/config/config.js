@@ -17,27 +17,30 @@ module.exports = {
   // Modos de ejecución
   simulador: hayBandera('simulador') || process.env.SIMULADOR === '1',
   listarPuertos: hayBandera('puertos'),
-  // Si el autodescubrimiento no encuentra la placa, se puede forzar: --puerto=COM5
+  // Si el autodescubrimiento no encuentra la placa, se puede forzar: --puerto=/dev/ttyUSB0 o --puerto=COM5
   puertoForzado: valorDe('puerto') || process.env.SERIAL_PORT || null,
 
-  // Parámetros del enlace UART definidos en el documento (sección "Sesión M2M")
+  // Rutas del proyecto
+  publicDir: path.join(__dirname, '..', '..', 'public'),
+
+  // Parámetros del enlace UART definidos en el README (sección "Especificación de Sesión M2M")
   serial: {
     baudRate: 115200, // 8N1, sin control de flujo
-    esperaArranqueMs: 1800, // el bootloader del Nano tarda en arrancar tras el pulso DTR
-    pingTimeoutMs: 500, // ventana máxima para recibir el PONG
-    pingIntentos: 2,
-    reintentoBusquedaMs: 3000,
-    // VID de los chips USB-UART compatibles: CH340, FTDI, Arduino oficial, CP210x
-    vendorIds: ['1a86', '0403', '2341', '10c4'],
+    esperaArranqueMs: 2000, // 1500-2000 ms tras pulso DTR para bootloader del Arduino Nano
+    pingTimeoutMs: 500, // ventana máxima de 500 ms para recibir PONG
+    pingIntentos: 3, // reintentos de CMD_PING por puerto candidato
+    pingPausaEntreIntentosMs: 250,
+    reintentoBusquedaMs: 2500,
+    // VID de controladores USB-UART compatibles: CH340, FTDI, Arduino oficial (2341/2a03), CP210x
+    vendorIds: ['1a86', '0403', '2341', '2a03', '10c4'],
   },
 
-  // El documento nombra dos veces el comando de paro: CMD_ESCOTILLA (diccionario M2M)
-  // y CMD_PARO_EMERGENCIA (sección 3.2). Si el firmware usa el otro, cambiarlo aquí
-  // o ejecutar con la variable de entorno CMD_PARO.
+  // El MCU acepta tanto CMD_ESCOTILLA como CMD_PARO_EMERGENCIA (M2MProtocol.cpp).
+  // Se permite sobreescribir vía variable de entorno CMD_PARO.
   comandoParo: process.env.CMD_PARO || 'CMD_ESCOTILLA',
 
   bitacora: {
-    archivo: path.join(__dirname, '..', 'data', 'bitacora.jsonl'),
+    archivo: path.join(__dirname, '..', '..', 'data', 'bitacora.jsonl'),
     maxEnMemoria: 500,
     // Los cambios de nivel del potenciómetro llegan cada ±2 %; en la bitácora solo se
     // anotan cuando el nivel cambió al menos esto desde la última anotación.

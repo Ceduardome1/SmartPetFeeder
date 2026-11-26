@@ -25,6 +25,7 @@ public:
   void onRemoteParoEmergencia();
   void onSetAngulo(int newAngle);
   void onLevelChanged(uint8_t newLevel);
+  void onSyncState();
   void onUnhandledException();
 
   SystemState getState() const { return _state; }

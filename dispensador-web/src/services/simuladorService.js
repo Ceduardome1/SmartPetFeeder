@@ -1,31 +1,54 @@
 'use strict';
 
 const { EventEmitter } = require('events');
-const { FIRMA_DISPOSITIVO, UMBRAL_SIN_COMIDA, ANGULO_MIN, ANGULO_MAX } = require('./protocolo');
+const { FIRMA_DISPOSITIVO, UMBRAL_SIN_COMIDA, ANGULO_MIN, ANGULO_MAX } = require('../models/protocolo');
 
 /**
- * Firmware virtual: habla el mismo contrato M2M que el Arduino (PING/PONG, tramas JSON,
- * comandos CMD_*). Sirve para probar y presentar la interfaz sin hardware conectado.
- * Tiene la misma interfaz que EnlaceSerial, más simular() para imitar los componentes
- * físicos (potenciómetro y pulsadores).
+ * Servicio de firmware virtual (modo demo).
+ * Replica exactamente la máquina de estados de mcu/StateMachine.cpp y el contrato M2M
+ * con la misma interfaz pública que SerialService.
  */
-class EnlaceSimulado extends EventEmitter {
+class SimuladorService extends EventEmitter {
   constructor() {
     super();
     this.simulador = true;
     this.conectado = false;
     this.puerto = null;
-    this.m = { nivel: 80, nivelReportado: 80, angulo: 50, escotilla: false, bloqueo: null, ocupado: false };
+    this._timers = new Set();
+    this.m = {
+      nivel: 80,
+      nivelReportado: 80,
+      angulo: 50,
+      escotilla: false,
+      bloqueo: null, // null | 'PARO' | 'CABEZA'
+      ocupado: false,
+    };
+  }
+
+  _programar(fn, ms) {
+    const id = setTimeout(() => {
+      this._timers.delete(id);
+      fn();
+    }, ms);
+    this._timers.add(id);
+    return id;
   }
 
   iniciar() {
     this.emit('info', 'Iniciando el simulador del firmware…');
-    setTimeout(() => {
+    this._programar(() => {
       this.conectado = true;
       this.puerto = 'SIMULADOR';
       this.emit('conectado', { path: 'SIMULADOR', firma: FIRMA_DISPOSITIVO });
-      setTimeout(() => this._emitir('ESTADO_NIVEL'), 100); // sincronización de estado inicial
-    }, 600);
+      this._programar(() => this._emitir('ESTADO_NIVEL'), 100);
+    }, 500);
+  }
+
+  async detener() {
+    for (const id of this._timers) clearTimeout(id);
+    this._timers.clear();
+    this.conectado = false;
+    this.puerto = null;
   }
 
   enviar(linea) {
@@ -36,7 +59,7 @@ class EnlaceSimulado extends EventEmitter {
     });
   }
 
-  // ----- Firmware virtual -----
+  // ----- Lógica equivalente a mcu/StateMachine.cpp + mcu/M2MProtocol.cpp -----
 
   _estadoGlobal() {
     if (this.m.bloqueo === 'CABEZA') return 'CABEZA_ATORADA';
@@ -53,17 +76,21 @@ class EnlaceSimulado extends EventEmitter {
       angulo: this.m.angulo,
       escotilla: this.m.escotilla,
     };
-    setTimeout(() => this.emit('trama', trama), 30);
+    this._programar(() => this.emit('trama', trama), 30);
   }
 
   _procesar(cmd) {
     if (cmd === 'CMD_PING') {
-      setTimeout(() => this.emit('trama', { evento: 'PONG', dispositivo: FIRMA_DISPOSITIVO }), 10);
+      this._programar(() => {
+        this.emit('trama', { evento: 'PONG', dispositivo: FIRMA_DISPOSITIVO });
+        this._emitir('ESTADO_NIVEL');
+      }, 15);
       return;
     }
     if (cmd === 'CMD_DISPENSAR') return this._dispensar();
     if (cmd === 'CMD_REINICIAR') return this._reiniciar();
-    if (cmd === 'CMD_ESCOTILLA' || cmd === 'CMD_PARO_EMERGENCIA') return this._paro();
+    if (cmd === 'CMD_ESCOTILLA' || cmd === 'CMD_PARO_EMERGENCIA') return this._paroRemoto();
+
     const m = /^CMD_ANGULO:(\d+)$/.exec(cmd);
     if (m) {
       const v = Number(m[1]);
@@ -75,23 +102,40 @@ class EnlaceSimulado extends EventEmitter {
   }
 
   _dispensar() {
-    if (this.m.bloqueo) return; // bloqueado hasta Reiniciar: el firmware ignora la orden
+    if (this.m.bloqueo) return;
     if (this.m.nivel <= UMBRAL_SIN_COMIDA) return this._emitir('SIN_COMIDA');
     if (this.m.ocupado) return;
     this.m.ocupado = true;
-    setTimeout(() => {
+    this.m.escotilla = true;
+    this._programar(() => {
       this.m.ocupado = false;
-      if (!this.m.bloqueo) this._emitir('DISPENSACION_EXITOSA');
-    }, 1500); // duración del ciclo del servo
+      if (!this.m.bloqueo) {
+        this.m.escotilla = false;
+        this._emitir('DISPENSACION_EXITOSA');
+      }
+    }, 1800);
   }
 
-  _paro() {
-    if (this.m.bloqueo !== 'CABEZA') this.m.bloqueo = 'PARO';
+  _paroRemoto() {
+    if (this.m.bloqueo === 'CABEZA') return;
+    this.m.ocupado = false;
+    this.m.bloqueo = 'PARO';
     this.m.escotilla = true;
     this._emitir('PARO_EMERGENCIA');
   }
 
+  _toggleEscotillaFisico() {
+    if (this.m.bloqueo === 'CABEZA') return;
+    if (this.m.ocupado || !this.m.escotilla) {
+      this._paroRemoto();
+    } else {
+      this.m.escotilla = false;
+      this._emitir('PARO_EMERGENCIA');
+    }
+  }
+
   _cabeza() {
+    this.m.ocupado = false;
     this.m.bloqueo = 'CABEZA';
     this.m.escotilla = true;
     this._emitir('ALERTA_CABEZA_ATORADA');
@@ -104,7 +148,7 @@ class EnlaceSimulado extends EventEmitter {
     this._emitir('FLUJO_REINICIADO');
   }
 
-  // ----- Componentes físicos simulados -----
+  // ----- Simulación de entradas físicas (potenciómetro y 4 botones) -----
 
   simular(accion, valor) {
     switch (accion) {
@@ -113,10 +157,19 @@ class EnlaceSimulado extends EventEmitter {
         if (!(v >= 0 && v <= 100)) throw new Error('El nivel debe estar entre 0 y 100.');
         const antes = this.m.nivel;
         this.m.nivel = v;
-        const cruzaUmbral = antes > UMBRAL_SIN_COMIDA !== v > UMBRAL_SIN_COMIDA;
-        // El firmware solo reporta cambios de ±2 % en el potenciómetro
-        if (cruzaUmbral || Math.abs(v - this.m.nivelReportado) >= 2) this._emitir('ESTADO_NIVEL');
-        if (antes > UMBRAL_SIN_COMIDA && v <= UMBRAL_SIN_COMIDA) this._emitir('SIN_COMIDA');
+
+        const cambioHisteresis = Math.abs(v - this.m.nivelReportado) >= 2;
+        const cruzaHaciaVacio = antes > UMBRAL_SIN_COMIDA && v <= UMBRAL_SIN_COMIDA;
+        const cruzaHaciaLleno = antes <= UMBRAL_SIN_COMIDA && v > UMBRAL_SIN_COMIDA;
+
+        if (!this.m.bloqueo && cruzaHaciaVacio) {
+          this.m.nivelReportado = v;
+          this._emitir('SIN_COMIDA');
+          return;
+        }
+        if (cambioHisteresis || cruzaHaciaLleno) {
+          this._emitir('ESTADO_NIVEL');
+        }
         return;
       }
       case 'cabeza':
@@ -124,7 +177,7 @@ class EnlaceSimulado extends EventEmitter {
       case 'dispensar':
         return this._dispensar();
       case 'escotilla':
-        return this._paro();
+        return this._toggleEscotillaFisico();
       case 'reiniciar':
         return this._reiniciar();
       default:
@@ -133,4 +186,4 @@ class EnlaceSimulado extends EventEmitter {
   }
 }
 
-module.exports = { EnlaceSimulado };
+module.exports = { SimuladorService };
